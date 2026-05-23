@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>RPS Game</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #fff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+  .screen { display: none; width: 100%; max-width: 420px; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  h1 { font-size: 28px; font-weight: 700; text-align: center; }
+  h2 { font-size: 20px; font-weight: 600; text-align: center; }
+  .subtitle { font-size: 14px; color: #888; text-align: center; }
+  input[type="text"] { width: 100%; padding: 14px 18px; font-size: 18px; border-radius: 14px; border: 1.5px solid #333; background: #1a1a1a; color: #fff; text-align: center; outline: none; }
+  input[type="text"]:focus { border-color: #555; }
+  .btn-row { display: flex; gap: 14px; width: 100%; justify-content: center; }
+  .big-btn { width: 80px; height: 80px; border-radius: 20px; border: 1.5px solid #333; background: #1a1a1a; color: #fff; font-size: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, transform 0.1s; }
+  .big-btn:active { background: #2a2a2a; transform: scale(0.95); }
+  .big-btn.selected { border-color: #fff; background: #2a2a2a; }
+  .action-btn { width: 100%; padding: 16px; font-size: 18px; font-weight: 600; border-radius: 14px; border: none; cursor: pointer; transition: opacity 0.15s, transform 0.1s; }
+  .action-btn:active { transform: scale(0.98); opacity: 0.85; }
+  .action-btn.primary { background: #fff; color: #000; }
+  .action-btn.secondary { background: #1a1a1a; color: #fff; border: 1.5px solid #333; }
+  .action-btn:disabled { opacity: 0.4; cursor: default; }
+  .game-list { width: 100%; display: flex; flex-direction: column; gap: 10px; max-height: 55vh; overflow-y: auto; }
+  .game-item { background: #1a1a1a; border: 1.5px solid #333; border-radius: 14px; padding: 14px 18px; cursor: pointer; transition: border-color 0.15s; }
+  .game-item:active { border-color: #fff; }
+  .game-item .gi-title { font-size: 16px; font-weight: 600; }
+  .game-item .gi-sub { font-size: 13px; color: #888; margin-top: 4px; }
+  .players-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; width: 100%; }
+  .player-chip { background: #1a1a1a; border: 1.5px solid #333; border-radius: 30px; padding: 8px 16px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .player-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+  .player-chip.ready .dot { background: #4ade80; }
+  .choice-row { display: flex; gap: 16px; justify-content: center; width: 100%; }
+  .choice-btn { flex: 1; max-width: 90px; height: 90px; border-radius: 20px; border: 1.5px solid #333; background: #1a1a1a; font-size: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, border-color 0.15s, transform 0.1s; }
+  .choice-btn:active { transform: scale(0.95); }
+  .choice-btn.chosen { border-color: #fff; background: #2a2a2a; }
+  .choice-btn:disabled { opacity: 0.4; cursor: default; }
+  .result-box { background: #1a1a1a; border: 1.5px solid #333; border-radius: 16px; padding: 20px; width: 100%; }
+  .result-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #222; font-size: 15px; }
+  .result-item:last-child { border-bottom: none; }
+  .winner-badge { background: #fff; color: #000; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .score-section { width: 100%; }
+  .score-title { font-size: 13px; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .score-card { background: #1a1a1a; border: 1.5px solid #333; border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; }
+  .score-card .sc-label { font-size: 13px; color: #888; margin-bottom: 4px; }
+  .score-card .sc-value { font-size: 16px; font-weight: 600; }
+  .score-card .sc-sub { font-size: 13px; color: #aaa; margin-top: 2px; }
+  .rank-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #222; }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-num { font-size: 14px; color: #666; width: 20px; }
+  .rank-name { flex: 1; font-size: 15px; }
+  .rank-wins { font-size: 14px; color: #888; }
+  .status-text { font-size: 15px; color: #888; text-align: center; }
+  .big-emoji { font-size: 64px; text-align: center; }
+  .divider { width: 100%; height: 1px; background: #222; }
+  select { width: 100%; padding: 14px 18px; font-size: 16px; border-radius: 14px; border: 1.5px solid #333; background: #1a1a1a; color: #fff; outline: none; appearance: none; text-align: center; }
+  .back-btn { align-self: flex-start; background: none; border: none; color: #888; font-size: 15px; cursor: pointer; padding: 0; display: flex; align-items: center; gap: 6px; }
+  .back-btn:active { color: #fff; }
+  .empty-text { color: #555; font-size: 15px; text-align: center; padding: 30px 0; }
+</style>
+</head>
+<body>
+
+<!-- SCREEN: Enter name -->
+<div id="screen-name" class="screen active">
+  <div class="big-emoji">✊✌️🖐</div>
+  <h1>Rock Paper Scissors</h1>
+  <p class="subtitle">Enter your name to play</p>
+  <input type="text" id="name-input" placeholder="Your name" maxlength="20" autocomplete="off" />
+  <div class="btn-row">
+    <button class="big-btn" onclick="goMenu('create')" title="Create game">＋</button>
+    <button class="big-btn" onclick="goMenu('join')" title="Join game">✕</button>
+    <button class="big-btn" onclick="goMenu('score')" title="Scoreboard">＝</button>
+  </div>
+  <p class="subtitle">＋ create &nbsp;&nbsp; ✕ join &nbsp;&nbsp; ＝ scores</p>
+</div>
+
+<!-- SCREEN: Create game -->
+<div id="screen-create" class="screen">
+  <button class="back-btn" onclick="showScreen('screen-name')">← back</button>
+  <h2>New game</h2>
+  <p class="subtitle">How many players?</p>
+  <select id="max-players-select"></select>
+  <button class="action-btn primary" onclick="createGame()">Create & wait</button>
+</div>
+
+<!-- SCREEN: Join game -->
+<div id="screen-join" class="screen">
+  <button class="back-btn" onclick="showScreen('screen-name')">← back</button>
+  <h2>Join a game</h2>
+  <div id="join-list" class="game-list"><p class="empty-text">Loading...</p></div>
+  <button class="action-btn secondary" onclick="loadOpenGames()">Refresh</button>
+</div>
+
+<!-- SCREEN: Lobby (waiting for players) -->
+<div id="screen-lobby" class="screen">
+  <h2 id="lobby-title">Waiting for players</h2>
+  <p class="subtitle" id="lobby-sub"></p>
+  <div id="lobby-players" class="players-grid"></div>
+  <p class="status-text" id="lobby-status">Waiting...</p>
+  <button class="action-btn secondary" id="lobby-start-btn" style="display:none" onclick="startGame()">Start game</button>
+  <button class="action-btn secondary" onclick="leaveGame()">Leave</button>
+</div>
+
+<!-- SCREEN: Play -->
+<div id="screen-play" class="screen">
+  <h2 id="play-title">Make your move</h2>
+  <p class="subtitle" id="play-sub"></p>
+  <div class="choice-row">
+    <button class="choice-btn" id="btn-rock" onclick="makeChoice('rock')">✊</button>
+    <button class="choice-btn" id="btn-scissors" onclick="makeChoice('scissors')">✌️</button>
+    <button class="choice-btn" id="btn-paper" onclick="makeChoice('paper')">🖐</button>
+  </div>
+  <div id="waiting-choices" class="players-grid"></div>
+  <p class="status-text" id="play-status"></p>
+</div>
+
+<!-- SCREEN: Results -->
+<div id="screen-results" class="screen">
+  <h2>Round results</h2>
+  <div id="results-box" class="result-box"></div>
+  <button class="action-btn primary" id="next-round-btn" onclick="nextRound()">Next round</button>
+  <button class="action-btn secondary" onclick="leaveGame()">Leave game</button>
+</div>
+
+<!-- SCREEN: Score -->
+<div id="screen-score" class="screen">
+  <button class="back-btn" onclick="showScreen('screen-name')">← back</button>
+  <h2>Scoreboard</h2>
+  <div id="score-content" style="width:100%"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+  databaseURL: "https://rps-game-9bfd0-default-rtdb.firebaseio.com"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let myName = '';
+let myId = '';
+let currentGameId = null;
+let isHost = false;
+let myChoice = null;
+let gameRef = null;
+let gameListener = null;
+
+// Fill max players select with random max each session
+const maxOptions = [];
+for (let i = 2; i <= 67; i++) maxOptions.push(i);
+const sel = document.getElementById('max-players-select');
+for (let i = 2; i <= 67; i++) {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = i + ' players max';
+  if (i === 4) opt.selected = true;
+  sel.appendChild(opt);
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goMenu(action) {
+  const nameVal = document.getElementById('name-input').value.trim();
+  if (!nameVal) { alert('Please enter your name first'); return; }
+  myName = nameVal;
+  myId = myName + '_' + Date.now();
+  if (action === 'create') showScreen('screen-create');
+  if (action === 'join') { showScreen('screen-join'); loadOpenGames(); }
+  if (action === 'score') { showScreen('screen-score'); loadScore(); }
+}
+
+function generateGameId() {
+  return Math.random().toString(36).substr(2, 8).toUpperCase();
+}
+
+function createGame() {
+  const maxP = parseInt(document.getElementById('max-players-select').value);
+  const gameId = generateGameId();
+  currentGameId = gameId;
+  isHost = true;
+  const gameData = {
+    host: myName,
+    hostId: myId,
+    maxPlayers: maxP,
+    status: 'waiting',
+    createdAt: Date.now(),
+    players: { [myId]: { name: myName, ready: false } }
+  };
+  db.ref('games/' + gameId).set(gameData).then(() => {
+    attachGameListener(gameId);
+    showScreen('screen-lobby');
+  });
+}
+
+function loadOpenGames() {
+  const list = document.getElementById('join-list');
+  list.innerHTML = '<p class="empty-text">Loading...</p>';
+  db.ref('games').orderByChild('status').equalTo('waiting').once('value', snap => {
+    const games = snap.val();
+    list.innerHTML = '';
+    if (!games) { list.innerHTML = '<p class="empty-text">No open games right now</p>'; return; }
+    Object.entries(games).forEach(([id, g]) => {
+      const playerCount = g.players ? Object.keys(g.players).length : 0;
+      if (playerCount >= g.maxPlayers) return;
+      const div = document.createElement('div');
+      div.className = 'game-item';
+      div.innerHTML = `<div class="gi-title">Game by ${g.host}</div><div class="gi-sub">${playerCount} / ${g.maxPlayers} players</div>`;
+      div.onclick = () => joinGame(id, g);
+      list.appendChild(div);
+    });
+    if (!list.children.length) list.innerHTML = '<p class="empty-text">No open games right now</p>';
+  });
+}
+
+function joinGame(gameId, gameData) {
+  currentGameId = gameId;
+  isHost = false;
+  db.ref('games/' + gameId + '/players/' + myId).set({ name: myName, ready: false }).then(() => {
+    attachGameListener(gameId);
+    showScreen('screen-lobby');
+  });
+}
+
+function attachGameListener(gameId) {
+  if (gameListener) gameRef.off('value', gameListener);
+  gameRef = db.ref('games/' + gameId);
+  gameListener = gameRef.on('value', snap => {
+    const g = snap.val();
+    if (!g) { showScreen('screen-name'); return; }
+    if (g.status === 'waiting') updateLobby(g);
+    else if (g.status === 'playing') updatePlay(g);
+    else if (g.status === 'results') showResults(g);
+  });
+}
+
+function updateLobby(g) {
+  showScreen('screen-lobby');
+  const players = g.players ? Object.values(g.players) : [];
+  const count = players.length;
+  document.getElementById('lobby-title').textContent = 'Waiting for players';
+  document.getElementById('lobby-sub').textContent = count + ' / ' + g.maxPlayers + ' joined';
+  const grid = document.getElementById('lobby-players');
+  grid.innerHTML = '';
+  players.forEach(p => {
+    const chip = document.createElement('div');
+    chip.className = 'player-chip';
+    chip.innerHTML = `<span class="dot"></span>${p.name}`;
+    grid.appendChild(chip);
+  });
+  document.getElementById('lobby-status').textContent = isHost ? 'You are the host' : 'Waiting for host to start...';
+  const startBtn = document.getElementById('lobby-start-btn');
+  if (isHost && count >= 2) startBtn.style.display = 'block';
+  else startBtn.style.display = 'none';
+}
+
+function startGame() {
+  db.ref('games/' + currentGameId).update({ status: 'playing', round: 1, choices: null, startedAt: Date.now() });
+}
+
+function updatePlay(g) {
+  showScreen('screen-play');
+  const round = g.round || 1;
+  document.getElementById('play-title').textContent = 'Round ' + round;
+  const players = g.players ? Object.values(g.players) : [];
+  document.getElementById('play-sub').textContent = players.length + ' players';
+  const choices = g.choices || {};
+  const myChosen = choices[myId];
+  ['rock','scissors','paper'].forEach(c => {
+    const btn = document.getElementById('btn-' + c);
+    btn.classList.toggle('chosen', myChosen === c);
+    btn.disabled = !!myChosen;
+  });
+  const waiting = document.getElementById('waiting-choices');
+  waiting.innerHTML = '';
+  players.forEach(p => {
+    const pid = Object.keys(g.players).find(k => g.players[k].name === p.name);
+    const chip = document.createElement('div');
+    chip.className = 'player-chip' + (choices[pid] ? ' ready' : '');
+    chip.innerHTML = `<span class="dot"></span>${p.name}`;
+    waiting.appendChild(chip);
+  });
+  const total = players.length;
+  const done = Object.keys(choices).length;
+  document.getElementById('play-status').textContent = done + ' / ' + total + ' made their move';
+  if (done === total && isHost) {
+    setTimeout(() => calcResults(g), 800);
+  }
+}
+
+function makeChoice(choice) {
+  myChoice = choice;
+  db.ref('games/' + currentGameId + '/choices/' + myId).set(choice);
+}
+
+const beats = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
+
+function calcResults(g) {
+  const choices = g.choices || {};
+  const players = g.players || {};
+  const results = {};
+  Object.keys(players).forEach(pid => {
+    const c = choices[pid];
+    let wins = 0;
+    Object.keys(players).forEach(pid2 => {
+      if (pid2 !== pid && beats[c] === choices[pid2]) wins++;
+    });
+    results[pid] = { name: players[pid].name, choice: c, wins };
+  });
+  const maxWins = Math.max(...Object.values(results).map(r => r.wins));
+  const winners = Object.values(results).filter(r => r.wins === maxWins && maxWins > 0).map(r => r.name);
+  db.ref('games/' + currentGameId).update({
+    status: 'results',
+    results,
+    winners: winners.length ? winners : ['tie'],
+    endedAt: Date.now()
+  });
+  // Save to history
+  const duration = (Date.now() - g.startedAt) / 1000;
+  const playerCount = Object.keys(players).length;
+  db.ref('history').push({
+    players: playerCount,
+    winners,
+    duration: Math.round(duration),
+    names: Object.values(players).map(p => p.name),
+    round: g.round || 1,
+    at: Date.now()
+  });
+  // Update name wins
+  winners.forEach(name => {
+    const key = name.replace(/[.#$\[\]]/g, '_');
+    db.ref('nameWins/' + key).transaction(v => (v || 0) + 1);
+  });
+}
+
+function showResults(g) {
+  showScreen('screen-results');
+  const results = g.results || {};
+  const winners = g.winners || [];
+  const box = document.getElementById('results-box');
+  box.innerHTML = '';
+  const choiceEmoji = { rock: '✊', scissors: '✌️', paper: '🖐' };
+  Object.values(results).sort((a,b) => b.wins - a.wins).forEach(r => {
+    const isWinner = winners.includes(r.name);
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    div.innerHTML = `<span>${r.name} ${choiceEmoji[r.choice] || ''}</span>${isWinner ? '<span class="winner-badge">WIN</span>' : '<span style="color:#555">'+r.wins+' pts</span>'}`;
+    box.appendChild(div);
+  });
+  if (winners[0] === 'tie') {
+    const div = document.createElement('div');
+    div.style.cssText = 'text-align:center;padding:10px;color:#888;font-size:15px';
+    div.textContent = "It's a tie!";
+    box.appendChild(div);
+  }
+  document.getElementById('next-round-btn').style.display = isHost ? 'block' : 'none';
+}
+
+function nextRound() {
+  db.ref('games/' + currentGameId).update({ status: 'playing', choices: null, results: null, winners: null, round: (firebase.database.ServerValue.increment ? null : null) });
+  db.ref('games/' + currentGameId + '/round').transaction(r => (r || 1) + 1);
+}
+
+function leaveGame() {
+  if (gameRef) gameRef.off('value', gameListener);
+  if (currentGameId) {
+    db.ref('games/' + currentGameId + '/players/' + myId).remove();
+    if (isHost) db.ref('games/' + currentGameId).update({ status: 'abandoned' });
+  }
+  currentGameId = null;
+  isHost = false;
+  myChoice = null;
+  showScreen('screen-name');
+}
+
+function loadScore() {
+  const content = document.getElementById('score-content');
+  content.innerHTML = '<p class="empty-text">Loading...</p>';
+  Promise.all([
+    db.ref('history').orderByChild('at').limitToLast(100).once('value'),
+    db.ref('nameWins').orderByValue().limitToLast(10).once('value')
+  ]).then(([histSnap, winsSnap]) => {
+    const history = histSnap.val() ? Object.values(histSnap.val()) : [];
+    const nameWins = winsSnap.val() || {};
+    content.innerHTML = '';
+
+    if (!history.length) { content.innerHTML = '<p class="empty-text">No games played yet</p>'; return; }
+
+    const sorted = [...history].sort((a,b) => a.duration - b.duration);
+    const fastest = sorted[0];
+    const slowest = sorted[sorted.length-1];
+    const biggestGame = [...history].sort((a,b) => b.players - a.players)[0];
+
+    const sec = s => { if (s < 60) return s + 's'; return Math.floor(s/60) + 'm ' + (s%60) + 's'; };
+
+    content.innerHTML = `
+      <div class="score-section">
+        <p class="score-title">Records</p>
+        <div class="score-card">
+          <div class="sc-label">⚡ Fastest game</div>
+          <div class="sc-value">${sec(fastest.duration)}</div>
+          <div class="sc-sub">${fastest.players} players · ${fastest.names ? fastest.names.join(', ') : ''}</div>
+        </div>
+        <div class="score-card">
+          <div class="sc-label">🐢 Longest game</div>
+          <div class="sc-value">${sec(slowest.duration)}</div>
+          <div class="sc-sub">${slowest.players} players · ${slowest.names ? slowest.names.join(', ') : ''}</div>
+        </div>
+        <div class="score-card">
+          <div class="sc-label">👥 Most players</div>
+          <div class="sc-value">${biggestGame.players} players</div>
+          <div class="sc-sub">${biggestGame.names ? biggestGame.names.join(', ') : ''}</div>
+        </div>
+      </div>
+      <div class="score-section" style="margin-top:20px">
+        <p class="score-title">Top winners</p>
+        <div class="score-card">
+          ${Object.entries(nameWins).sort((a,b)=>b[1]-a[1]).map(([name,wins],i)=>`
+            <div class="rank-item">
+              <span class="rank-num">${i+1}</span>
+              <span class="rank-name">${name.replace(/_/g,' ')}</span>
+              <span class="rank-wins">${wins} wins</span>
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="score-section" style="margin-top:8px">
+        <p class="score-title" style="text-align:center;color:#444">Total games played: ${history.length}</p>
+      </div>
+    `;
+  });
+}
+
+// Telegram WebApp init
+if (window.Telegram && window.Telegram.WebApp) {
+  Telegram.WebApp.ready();
+  Telegram.WebApp.expand();
+}
+</script>
+</body>
+</html>
