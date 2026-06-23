@@ -222,13 +222,16 @@ function updateLobby(g) {
 }
 
 function startGame() {
-  const activeObj = {};
-  Object.keys(gameRef.gameSnapVal || {}).length; // noop
-  db.ref('games/' + currentGameId + '/players').once('value', snap => {
-    const players = snap.val() || {};
+  db.ref('games/' + currentGameId).transaction(g => {
+    if (!g) return g;
     const active = {};
-    Object.keys(players).forEach(id => active[id] = true);
-    db.ref('games/' + currentGameId).update({ status: 'playing', round: 1, choices: null, active, startedAt: Date.now() });
+    Object.keys(g.players || {}).forEach(id => active[id] = true);
+    g.status = 'playing';
+    g.round = 1;
+    g.choices = null;
+    g.active = active;
+    g.startedAt = Date.now();
+    return g;
   });
 }
 
