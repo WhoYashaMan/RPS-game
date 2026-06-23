@@ -263,6 +263,10 @@ function updatePlay(g) {
   }
 }
 
+function makeChoice(choice) {
+  db.ref('games/' + currentGameId + '/choices/' + myId).set(choice);
+}
+
 const beats = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
 
 function calcResults(g) {
